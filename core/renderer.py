@@ -19,7 +19,6 @@ class Renderer:
             pygame.draw.rect(surface,blend(c.sky,c.floor,t*.42),(0,y,WIDTH,4))
         self._scenery(surface,game)
         self._board(surface,c)
-        self._ambient(surface,game)
 
     def _scenery(self,surface,game):
         name=game.config.name
