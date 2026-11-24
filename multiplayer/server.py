@@ -64,7 +64,10 @@ class SnakeServer:
                 message = read_json_line(stream)
                 if message.get("type") == "move": self.input_queue.put(message.get("direction"))
         except Exception:
-            if not self.stop_event.is_set(): self.error = "A player disconnected"; self.stop_event.set()
+            if not self.stop_event.is_set():
+                self.error = "A player disconnected"
+                self.state = {"type": "disconnected", "message": self.error}
+                self.stop_event.set()
 
     def _run_game(self):
         snakes = [Snake([(8,13),(7,13),(6,13)], "right"), Snake([(31,13),(32,13),(33,13)], "left")]

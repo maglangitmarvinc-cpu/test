@@ -9,15 +9,27 @@ class SnakeClient:
         self.messages = queue.Queue()
         self.error = None
         self.connected = False
+        self.closed = threading.Event()
 
     def connect(self, timeout=5):
-        sock = socket.create_connection((self.host, self.port), timeout=timeout)
-        sock.settimeout(None)
-        self.sock = sock
-        self.stream = sock.makefile("rb")
-        send_json(sock, {"type":"join", "username":self.username})
-        self.connected = True
-        threading.Thread(target=self._read_loop, daemon=True).start()
+        """Start connecting in the background so the Pygame loop stays responsive."""
+        threading.Thread(target=self._connect, args=(timeout,), daemon=True).start()
+
+    def _connect(self, timeout):
+        try:
+            sock = socket.create_connection((self.host, self.port), timeout=timeout)
+            if self.closed.is_set():
+                sock.close()
+                return
+            sock.settimeout(None)
+            self.sock = sock
+            self.stream = sock.makefile("rb")
+            send_json(sock, {"type":"join", "username":self.username})
+            self.connected = True
+            threading.Thread(target=self._read_loop, daemon=True).start()
+        except Exception as exc:
+            self.error = str(exc)
+            self.messages.put({"type": "disconnected", "message": self.error})
 
     def _read_loop(self):
         try:
@@ -35,11 +47,20 @@ class SnakeClient:
     def latest(self):
         result = None
         while True:
-            try: result = self.messages.get_nowait()
-            except queue.Empty: return result
+            try:
+                message = self.messages.get_nowait()
+            except queue.Empty:
+                return result
+            # A final game state can arrive immediately before the socket closes.
+            # Keep it instead of letting the following disconnect notice hide it.
+            if message.get("type") == "over":
+                result = message
+            elif result is None:
+                result = message
 
     def close(self):
         self.connected = False
+        self.closed.set()
         if self.sock:
             try: self.sock.shutdown(socket.SHUT_RDWR)
             except OSError: pass

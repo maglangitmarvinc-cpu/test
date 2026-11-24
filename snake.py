@@ -12,7 +12,10 @@ class Snake:
         self.alive = True
 
     def steer(self, direction):
-        if direction in self.DIRECTIONS and direction != self.OPPOSITE[self.direction]:
+        # Accept at most one turn between movement steps, so rapid key presses
+        # cannot queue a 180-degree reversal through an intermediate turn.
+        if (self.pending == self.direction and direction in self.DIRECTIONS
+                and direction != self.OPPOSITE[self.direction]):
             self.pending = direction
 
     def next_head(self):

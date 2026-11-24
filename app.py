@@ -47,15 +47,49 @@ def main():
     snake=None; food=None; last_step=0; paused=False; game_over=False
     server=None; client=None; host_name=""; join_ip="127.0.0.1"; port_text="50505"; net_state=None; setup_field="username"
     running=True
+
+    def start_solo():
+        nonlocal snake, food, score, last_step, paused, game_over
+        snake = Snake([(10,13),(9,13),(8,13)], "right")
+        food = random_food(BOARD_COLS, BOARD_ROWS, set(snake.body))
+        score = 0
+        last_step = pygame.time.get_ticks()
+        paused = False
+        game_over = False
+
+    def start_host():
+        nonlocal server, state, message, host_name
+        try:
+            host_name = DB.ensure_user(username)[1]
+            server = SnakeServer(int(port_text), host_name)
+            server.start()
+            state = "host_wait"
+            message = "Waiting for a player to join..."
+        except Exception as exc:
+            message = str(exc)
+            state = "host_setup"
+
+    def start_join():
+        nonlocal client, state, message
+        try:
+            DB.ensure_user(username)
+            client = SnakeClient(join_ip, int(port_text), username)
+            client.connect()
+            state = "network"
+            message = "Connected"
+        except Exception as exc:
+            message = str(exc)
+            state = "join_setup"
+
     while running:
         now=pygame.time.get_ticks()
         for event in pygame.event.get():
             if event.type==pygame.QUIT: running=False
             elif event.type==pygame.KEYDOWN:
-                if state=="join_setup" and event.key==pygame.K_LCTRL:
-                    message="Edit host address: Shift+Backspace clears the current username field."
                 if state in ("username","host_setup","join_setup"):
-                    if event.key==pygame.K_TAB:
+                    if event.key==pygame.K_ESCAPE:
+                        state="menu" if state=="username" else "multi_menu"
+                    elif event.key==pygame.K_TAB:
                         setup_field={"username":"port","port":"ip","ip":"username"}.get(setup_field,"username")
                     elif event.key==pygame.K_BACKSPACE:
                         if state=="join_setup" and setup_field=="ip": join_ip=join_ip[:-1]
@@ -64,12 +98,16 @@ def main():
                     elif event.key==pygame.K_RETURN:
                         if state=="username":
                             try: DB.ensure_user(username); best=DB.best_score(username); start_solo(); state="solo"
-                    except Exception as exc: message=str(exc)
+                            except Exception as exc: message=str(exc)
                         elif state=="host_setup": start_host()
                         elif state=="join_setup": start_join()
                     elif event.unicode.isprintable() and event.unicode not in "\r\n":
-                        if setup_field=="port" and event.unicode.isdigit() and len(port_text)<5: port_text+=event.unicode
-                        elif state=="join_setup" and setup_field=="ip" and (event.unicode.isalnum() or event.unicode in ".:-_") and len(join_ip)<50: join_ip+=event.unicode
+                        if setup_field=="port" and event.unicode.isdigit() and len(port_text)<5:
+                            if port_text=="50505": port_text=""
+                            port_text+=event.unicode
+                        elif state=="join_setup" and setup_field=="ip" and (event.unicode.isalnum() or event.unicode in ".:-_") and len(join_ip)<50:
+                            if join_ip=="127.0.0.1": join_ip=""
+                            join_ip+=event.unicode
                         elif setup_field=="username" and len(username)<20: username+=event.unicode
                 elif state=="solo" and event.key in (pygame.K_ESCAPE,pygame.K_p): paused=not paused
                 elif state=="solo" and not paused and snake and snake.alive:
@@ -89,14 +127,14 @@ def main():
             elif event.type==pygame.MOUSEBUTTONDOWN and event.button==1:
                 pos=event.pos
                 if state=="menu":
-                    if button_hit(pos,180): username=""; message="Enter your username"; state="username"
+                    if button_hit(pos,180): username=""; setup_field="username"; message="Enter your username"; state="username"
                     elif button_hit(pos,238): username=""; state="multi_menu"
                     elif button_hit(pos,296): mode="Solo"; state="scores"
                     elif button_hit(pos,354): state="instructions"
                     elif button_hit(pos,412): running=False
                 elif state=="multi_menu":
-                    if button_hit(pos,250): username=""; state="host_setup"
-                    elif button_hit(pos,310): username=""; state="join_setup"
+                    if button_hit(pos,250): username=""; setup_field="username"; state="host_setup"
+                    elif button_hit(pos,310): username=""; setup_field="username"; state="join_setup"
                     elif button_hit(pos,390): state="menu"
                 elif state=="scores":
                     if button_hit(pos,575): mode="Multiplayer" if mode=="Solo" else "Solo"
@@ -114,8 +152,8 @@ def main():
                     elif button_hit(pos,540): state="menu"; game_over=False
                 elif state in ("host_setup","join_setup"):
                     if pygame.Rect(WIDTH//2-170,250,340,42).collidepoint(pos): setup_field="username"
-                    elif pygame.Rect(WIDTH//2-170,340,160,42).collidepoint(pos): setup_field="port"
-                    elif state=="join_setup" and pygame.Rect(WIDTH//2+20,340,210,42).collidepoint(pos): setup_field="ip"
+                    elif pygame.Rect(WIDTH//2-170,340,160,42).collidepoint(pos): setup_field="port"; port_text=""
+                    elif state=="join_setup" and pygame.Rect(WIDTH//2+20,340,210,42).collidepoint(pos): setup_field="ip"; join_ip=""
                     if button_hit(pos,420): start_host() if state=="host_setup" else start_join()
                     elif button_hit(pos,480): state="multi_menu"
                 elif state in ("host_wait","network"):
@@ -127,27 +165,6 @@ def main():
                     if client: client.close(); client=None
                     if server: server.stop(); server=None
                     net_state=None; state="menu"
-
-        def start_solo():
-            nonlocal snake,food,score,last_step,paused,game_over
-            snake=Snake([(10,13),(9,13),(8,13)],"right"); food=random_food(BOARD_COLS,BOARD_ROWS,set(snake.body))
-            score=0; last_step=pygame.time.get_ticks(); paused=False; game_over=False
-
-        def start_host():
-            nonlocal server,state,message,host_name
-            try:
-                host_name=DB.ensure_user(username)[1]
-                server=SnakeServer(int(port_text),host_name); server.start()
-                state="host_wait"; message="Waiting for a player to join..."
-            except Exception as exc: message=str(exc); state="host_setup"
-
-        def start_join():
-            nonlocal client,state,message
-            try:
-                DB.ensure_user(username)
-                client=SnakeClient(join_ip,int(port_text),username); client.connect()
-                state="network"; message="Connected"
-            except Exception as exc: message=str(exc); state="join_setup"
 
         background()
         if state=="menu":
@@ -190,12 +207,16 @@ def main():
         elif state in ("host_wait","network"):
             if state=="host_wait":
                 if server and server.state.get("type")=="state": net_state=server.state
-                elif server and server.state.get("type")=="disconnected": message=server.state.get("message","Disconnected")
+                elif server and server.state.get("type")=="disconnected":
+                    message=server.state.get("message","Disconnected")
+                    net_state=None
                 elif server and server.error: message="Disconnected: "+server.error
             elif client:
                 latest=client.latest()
                 if latest: net_state=latest
-                if client.error: message="Disconnected: "+client.error
+                if client.error:
+                    message="Disconnected: "+client.error
+                    net_state=None
             if net_state and net_state.get("type") in ("state","over"):
                 draw_board()
                 colors=[GREEN,BLUE]
@@ -209,12 +230,19 @@ def main():
                     label(winner,WIDTH//2,HEIGHT-35,GREEN,TITLE,True)
                     if state=="host_wait":
                         for i in range(2):
-                            if scores[i]>0:
-                                try: DB.save_score(names[i],scores[i],"Multiplayer")
-                                except Exception: pass
+                            try: DB.save_score(names[i],scores[i],"Multiplayer")
+                            except Exception as exc: message="Could not save scores: "+str(exc)
+                        state="network_over"
+                    elif state=="network":
+                        try:
+                            player_index = names.index(username)
+                            DB.save_score(username, scores[player_index], "Multiplayer")
+                        except Exception as exc:
+                            message="Could not save score: "+str(exc)
                         state="network_over"
             else:
-                label("HOSTING GAME" if state=="host_wait" else "CONNECTING",WIDTH//2,170,GREEN,TITLE,True)
+                screen_title = "DISCONNECTED" if (server and server.error) or (client and client.error) else ("HOSTING GAME" if state=="host_wait" else "CONNECTING")
+                label(screen_title,WIDTH//2,170,GREEN if screen_title!="DISCONNECTED" else RED,TITLE,True)
                 label(message,WIDTH//2,255,WHITE,FONT,True)
                 if state=="host_wait":
                     try: ip=socket.gethostbyname(socket.gethostname())
@@ -224,7 +252,15 @@ def main():
                 label("WASD / arrows to move   •   Esc to leave",WIDTH//2,HEIGHT-50,MUTED,SMALL,True)
             button("Return to Menu",610,0)
         elif state=="network_over":
-            label("MATCH COMPLETE",WIDTH//2,180,GREEN,TITLE,True); label("The final scores are shown on the board.",WIDTH//2,280,WHITE,FONT,True); button("Return to Menu",400,0)
+            label("MATCH COMPLETE",WIDTH//2,160,GREEN,TITLE,True)
+            if net_state:
+                names=net_state.get("names",["Player 1","Player 2"])
+                scores=net_state.get("scores",[0,0])
+                alive=net_state.get("alive",[False,False])
+                winner="Draw!" if alive[0]==alive[1] else (names[0] if alive[0] else names[1])+" wins!"
+                label(winner,WIDTH//2,260,WHITE,FONT,True)
+                label(f"{names[0]}: {scores[0]}     {names[1]}: {scores[1]}",WIDTH//2,320,GREEN,FONT,True)
+            button("Return to Menu",400,0)
         elif state=="scores":
             label(f"{mode.upper()} HIGH SCORES",WIDTH//2,90,GREEN,TITLE,True); rows=DB.leaderboard(mode)
             label("RANK      PLAYER                         BEST SCORE",170,160,MUTED,SMALL)
