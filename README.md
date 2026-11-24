@@ -1,44 +1,46 @@
-# Snake Game
+# Snake Adventure
 
-A beginner-friendly Pygame Snake game with solo play, persistent SQLite scores, and two-player LAN play. The project uses only Python's standard library plus Pygame.
+Snake Adventure is a five-world arcade game built with Python and Pygame CE. The board, snake, fruit, enemies, lighting, and scenery are drawn procedurally, so no art or audio downloads are required. The graphics use a raised-board, faux-3D style in Pygame; they are not a real-time 3D renderer.
 
-## Install and run
+## Install and launch on Windows
 
-1. Install Python 3.10 or newer.
-2. Open a terminal in this folder.
-3. Install Pygame with `py -m pip install -r requirements.txt` (on systems without the Windows `py` launcher, use `python3 -m pip install -r requirements.txt`).
-4. Start the game with `py app.py` (or `python3 app.py`).
+Install Python 3, open PowerShell in this folder, and run these commands (type only the commands, not the `PS ...>` prompt):
 
-The database `snake_game.db` is created beside `app.py` the first time the game starts. Usernames are local to each computer. Solo and multiplayer leaderboards are separate and show each player's best completed score.
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
+```
 
-## Solo play
+The project uses the Pygame CE distribution, imported in Python as `pygame`. A virtual environment keeps it separate from any previously installed Pygame package. Pygame CE publishes Windows wheels for current CPython versions. If pip still tries to build from source, check `py --version` and share the full install error.
 
-Choose **Play Solo**, enter a username, then use arrow keys or WASD. Each red food item is worth 10 points. Speed increases as the score grows. Press P or Escape to pause/resume. Hitting a wall or your own body ends the game; the completed score is saved to SQLite.
+## Play
 
-## Play over a LAN
+- **Start Game** begins a campaign at the Forest. Gather five apples in each world to advance; all five worlds require 25 apples total.
+- **Level Selection** lets you replay worlds already unlocked. Practice runs do not count as a full campaign victory.
+- Use the arrow keys or WASD to steer. The snake cannot reverse directly into itself.
+- Avoid the walls, themed obstacles, and roaming enemies. Enemies use scatter, wandering, patrol, and occasional chase behavior.
+- Press P or Escape to pause/resume. In pause, restart the current world or return to the menu.
+- The HUD buttons pause the game and toggle sound. Music and short effects are synthesized locally.
 
-1. Both computers must be on the same Wi-Fi network or wired LAN. Install Python and this project on both.
-2. On the host, start the game, choose **Local Multiplayer → Host Game**, enter a username and port (50505 by default), then choose Continue. Keep the host game open.
-3. Find the host's LAN IPv4 address. On Windows, run `ipconfig` in Command Prompt and read the **IPv4 Address** under the active Wi-Fi or Ethernet adapter. Avoid VPN or virtual adapter addresses.
-4. On the second computer, choose **Local Multiplayer → Join Game**, enter a username, the host's IPv4 address and the same port, then choose Continue.
-5. Both players use arrow keys or WASD. The host's server is authoritative and runs the game state; scores and collisions are shared. A disconnect ends the session.
+## Worlds
 
-On Windows, allow Python through Windows Defender Firewall on **Private networks** when prompted. If no prompt appears, create an inbound TCP rule for port 50505 (or the port selected by the host), limited to Private profiles. Both machines should be on a trusted private network. The app does not contact an online service.
+Forest, Jungle, City, Sea, and Volcano each have distinct colors, props, obstacle layouts, enemies, ambient particles, and generated music. Difficulty rises as snake movement speeds up and enemies move faster. Level unlocks are stored in `adventure_progress.json` beside the project.
 
-## Controls and screens
+## Project layout
 
-- Menu: Solo, LAN multiplayer, high scores, instructions, exit.
-- Solo: Arrow keys/WASD to turn; P or Escape to pause/resume.
-- Multiplayer: Arrow keys/WASD to turn; Escape returns to the menu.
-- Press Tab in the host/join setup screen to cycle username, port, and host IP fields. You can also click a field. Backspace edits the selected field.
+- `app.py` — window, input, and screen flow
+- `core/game.py` — level gameplay, scoring, progression, particles
+- `core/level_manager.py` — level order and unlock persistence
+- `core/collision.py` — grid collision rules
+- `core/camera.py` — board-to-screen mapping
+- `core/renderer.py` — procedural 2.5D world rendering
+- `core/audio.py` — generated sound effects and ambient melodies
+- `entities/` — snake, enemies, and obstacles
+- `ai/enemy_ai.py` — patrol and scatter movement choices
+- `levels/` — the five environment definitions
+- `ui/screens.py` — menus, HUD, and overlays
+- `requirements.txt` — Pygame CE dependency
 
-## Project files
-
-- `app.py` — Pygame screens and application loop
-- `snake.py` — shared snake and food rules
-- `database.py` — SQLite schema and score queries
-- `settings.py` — board and color settings
-- `multiplayer/server.py` — authoritative threaded TCP host
-- `multiplayer/client.py` — background-reading TCP client
-- `multiplayer/network.py` — newline-delimited JSON protocol helpers
-- `requirements.txt` — Pygame dependency
+The earlier LAN multiplayer modules and SQLite score database remain in the repository, but the new Adventure campaign currently runs as a single-player mode.

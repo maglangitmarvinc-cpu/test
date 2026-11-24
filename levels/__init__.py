@@ -1,0 +1,1 @@
+"""Adventure level definitions."""
